@@ -1,112 +1,34 @@
 <div align="center">
 
-# ☁️ TeraBox Downloader API
+# ☁️ TeraBox Telegram Bot (Docker/Heroku)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white" alt="Bun"/>
-  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/>
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
-</p>
-
-A fast, lightweight, and efficient **TeraBox direct download link generator API** built with **Bun** and **TypeScript**. Easily fetch file details, thumbnails, and direct download links seamlessly!
+A fast, lightweight, and efficient **TeraBox Telegram Bot** built with **Python** and **Pyrogram**. Easily bypass Terabox pages and fetch direct files directly to Telegram.
 
 ---
 </div>
 
 ## ✨ Features
 
-- 🚀 **Ultra-Fast Performance**: Powered by Bun for rapid execution.
-- 🔗 **Direct Link Extraction**: Effortlessly bypass Terabox pages and grab direct download links.
-- 📦 **File Metadata**: Get file names, sizes, and thumbnails out of the box.
+- 🚀 **Asynchronous Downloading**: Avoid blocking loops.
 - 🐳 **Docker Ready**: Easy deployment using Docker seamlessly.
-- 💾 **Built-in Caching**: Features a caching system to reduce redundant requests and boost response times.
-- 🌐 **CORS Support**: Configured correctly to serve requests everywhere.
+- ☁️ **Heroku Ready**: Uses `heroku.yml` to automatically build the worker process.
 
 ## 🛠️ Prerequisites
 
-Before you begin, ensure you have the following installed:
+Set the following Environment Variables in Heroku dashboard:
+- `API_ID`
+- `API_HASH`
+- `BOT_TOKEN`
+- `NDUS_COOKIE`
 
-- [Bun](https://bun.sh/)
-- [Python 3](https://www.python.org/downloads/) (For the Python wrapper, if needed)
-- [Docker](https://www.docker.com/) (Optional, for containerized deployments)
-
-## 🚀 Getting Started
-
-### 1️⃣ Local Development
-
-1. **Clone the repository** and navigate into the directory.
-2. **Install dependencies**:
-   ```bash
-   bun install
-   ```
-3. **Run the server in development mode**:
-   ```bash
-   bun run dev
-   ```
-   *The server will start at `http://localhost:5000`.*
-
-### 2️⃣ Production Built
-
-To run the API in a production environment:
-
-```bash
-bun run start
-```
-
-### 3️⃣ Docker Deployment
+## 🚀 Docker Deployment
 
 Want to deploy it with Docker? Easy:
 
 ```bash
 # Build the Docker image
-docker build -t terabox-dl-api .
+docker build -t terabox-dl-bot .
 
-# Run the container
-docker run -p 5000:5000 terabox-dl-api
+# Run the container (pass env vars)
+docker run -e API_ID="..." -e API_HASH="..." -e BOT_TOKEN="..." -e NDUS_COOKIE="..." terabox-dl-bot
 ```
-
-## 🔌 API Documentation
-
-### Get File Details
-Retrieve the download link and details for a given TeraBox share URL.
-
-**Endpoint:** `/api`
-**Method:** `GET`
-
-#### Query Parameters
-| Parameter | Type   | Description                                          | Required |
-|-----------|--------|------------------------------------------------------|----------|
-| `url`     | String | The TeraBox share URL (e.g., `https://terabox.app/s/...`) | ✅ Yes   |
-
-#### Example Request
-```bash
-curl -X GET "http://localhost:5000/api?url=https://terabox.app/s/1HSEb8PZRUE7Z1Tvd3ZtT0g"
-```
-
-#### Example Response
-```json
-{
-  "status": "success",
-  "response_time": "1.234s",
-  "url": "https://terabox.app/s/1HSEb8PZRUE7Z1Tvd3ZtT0g",
-  "filename": "amazing_video.mp4",
-  "size": "500.00 MB",
-  "download": "https://d.terabox.app/...",
-  "thumbs": "https://thumb.terabox.app/..."
-}
-```
-
-## 🤝 Credits & Acknowledgements
-
-Special huge thanks to our amazing contributors and channels who made this possible:
-
-🌟 **[@cantarella_wuwa](https://t.me/cantarella_wuwa)**
-🌟 **[@cantarellabots channel](https://t.me/cantarellabots)**
-
-Their continuous support and resources are deeply appreciated by the community! 💖
-
----
-<p align="center">
-  <i>Developed with ❤️ for the open-source community.</i>
-</p>
