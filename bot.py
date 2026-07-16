@@ -49,56 +49,6 @@ def extract_surl(url: str):
         return match.group(1)
     return None
 
-async def get_terabox_data(surl: str, override_ndus: str = None):
-    try:
-        short_url = surl[1:] if surl.startswith("1") else surl
-
-        session = AsyncSession(impersonate="chrome110")
-        ndus_to_use = override_ndus if override_ndus else config.NDUS_COOKIE
-        cookies = {"ndus": ndus_to_use}
-        session.cookies.update(cookies)
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36"
-        }
-
-        first_url = f"https://dm.terabox.app/sharing/link?surl={surl}"
-        response = await session.get(first_url, headers=headers)
-
-        match = re.search(r'fn%28%22(.*?)%22%29', response.text)
-        if not match:
-            return None, "Failed to extract jsToken"
-
-        jsToken = match.group(1)
-        api_url = "https://dm.terabox.app/share/list"
-
-        params = {
-            "app_id": "250528",
-            "jsToken": jsToken,
-            "site_referer": "https://www.terabox.app/",
-            "shorturl": short_url,
-            "root": "1"
-        }
-
-        api_headers = {
-            "Host": "dm.terabox.app",
-            "User-Agent": headers["User-Agent"],
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": f"https://dm.terabox.app/sharing/link?surl={short_url}&clearCache=1",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Origin": "https://dm.terabox.app"
-        }
-
-        api_response = await session.get(api_url, params=params, headers=api_headers)
-        data = api_response.json()
-        return data, None
-    except Exception as e:
-        logger.error(f"Error fetching terabox data: {e}")
-        return None, str(e)
-
-
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
     await message.reply_text("Hello! Send me a Terabox link and I will download it for you.")
@@ -120,25 +70,8 @@ async def handle_link(client: Client, message: Message):
         return
 
     status_msg = await message.reply_text("Processing your link...")
-
-    data, err = await get_terabox_data(surl)
-
-    if err or not data:
-        await status_msg.edit_text(f"Error fetching data: {err}")
-        return
-
-    if "list" not in data or not data["list"]:
-        await status_msg.edit_text("No files found in this link.")
-        return
-
-    first_item = data["list"][0]
-    filename = first_item.get("server_filename", "downloaded_file")
-    dlink = first_item.get("dlink")
-
+    filename = f"terabox_download_{surl}.mp4"
     active_ndus = config.NDUS_COOKIE
-    if not dlink:
-        # If it failed to extract direct dlink, but extraction process succeeded, we just fall back immediately
-        logger.info("Could not extract direct dlink initially, looking for alternative routes.")
 
     # Helper to create a progress bar
     def make_progress_bar(action, filename, current, total, start_time):
@@ -187,47 +120,93 @@ async def handle_link(client: Client, message: Message):
                 headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36"
                 }
-                first_url = f"https://dm.terabox.app/sharing/link?surl={surl}"
+                # Must use terabox.com for new bypass route
+                first_url = f"https://terabox.com/sharing/link?surl={surl}"
 
                 response = session.get(first_url, headers=headers)
                 match = re.search(r'fn%28%22(.*?)%22%29', response.text)
 
-                # If primary cookie fails, immediately try fallback
-                if not match:
-                    fallback_cookie = "YuLuQdPpeHuiMGEQDXpWDu6K2P4-xInj8YGEzswD"
-                    # CRITICAL: Create a brand new session to clear any expired cookie state!
-                    session = requests.Session(impersonate="chrome110")
-                    session.cookies.update({"ndus": fallback_cookie})
-                    response = session.get(first_url, headers=headers)
-                    match = re.search(r'fn%28%22(.*?)%22%29', response.text)
-                    if not match:
-                        return None
+                # Try internal extraction via API
+                if match:
+                    jsToken = match.group(1)
+                    short_url = surl[1:] if surl.startswith("1") else surl
 
-                jsToken = match.group(1)
-                short_url = surl[1:] if surl.startswith("1") else surl
+                    api_url = "https://terabox.com/share/list"
+                    params = {
+                        "app_id": "250528",
+                        "jsToken": jsToken,
+                        "site_referer": "https://terabox.com/",
+                        "shorturl": short_url,
+                        "root": "1"
+                    }
+                    api_headers = {
+                        "Host": "terabox.com",
+                        "User-Agent": headers["User-Agent"],
+                        "Accept": "application/json, text/plain, */*",
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Referer": f"https://terabox.com/sharing/link?surl={short_url}&clearCache=1",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Origin": "https://terabox.com"
+                    }
 
-                api_url = "https://dm.terabox.app/share/list"
-                params = {
-                    "app_id": "250528",
-                    "jsToken": jsToken,
-                    "site_referer": "https://www.terabox.app/",
-                    "shorturl": short_url,
-                    "root": "1"
-                }
-                api_headers = {
-                    "Host": "dm.terabox.app",
-                    "User-Agent": headers["User-Agent"],
-                    "Accept": "application/json, text/plain, */*",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Referer": f"https://dm.terabox.app/sharing/link?surl={short_url}&clearCache=1",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Origin": "https://dm.terabox.app"
-                }
+                    api_response = session.get(api_url, params=params, headers=api_headers).json()
+                    if 'list' in api_response and api_response['list'] and 'dlink' in api_response['list'][0]:
+                        return api_response['list'][0]['dlink']
 
-                api_response = session.get(api_url, params=params, headers=api_headers).json()
-                if 'list' in api_response and api_response['list'] and 'dlink' in api_response['list'][0]:
-                    return api_response['list'][0]['dlink']
+                    # If list API omits dlink, request it from the download API explicitly
+                    if 'list' in api_response and api_response['list']:
+                        fs_id = api_response['list'][0]['fs_id']
+                        share_id = api_response.get('share_id')
+                        uk = api_response.get('uk')
+                        sign = api_response.get('sign', '')
+                        timestamp = api_response.get('timestamp', '')
+
+                        match2 = re.search(r'window\.jsToken%20%3D%20%22(.*?)%22', response.text)
+                        jsToken2 = match2.group(1) if match2 else jsToken
+
+                        dlink_url = "https://terabox.com/share/download"
+                        d_params = {
+                            "app_id": "250528",
+                            "web": "1",
+                            "channel": "dubox",
+                            "clienttype": "0",
+                            "jsToken": jsToken2,
+                            "dp-logid": api_response.get('request_id', ''),
+                            "shareid": share_id,
+                            "sign": sign,
+                            "timestamp": timestamp,
+                            "uk": uk,
+                            "primaryid": share_id,
+                            "product": "share",
+                            "nozip": "0",
+                            "fid_list": f"[{fs_id}]"
+                        }
+                        dlink_resp = session.get(dlink_url, params=d_params, headers=api_headers).json()
+                        if dlink_resp.get("errno") == 0 and "dlink" in dlink_resp:
+                             return dlink_resp['dlink']
+
+                # If cookies fail or `need verify` restricts us, fallback to 3rd party public API proxying
+                api_fallbacks = [
+                    f"https://wholly-api.skinnyrunner.com/get/website-data.php?get_html=https://www.terabox.tech/api/yttera?id={surl}",
+                    f"https://www.terabox.tech/api/yttera?id={surl}",
+                    f"https://teraboxdownloader.com/api/get-info?shorturl={surl}",
+                    f"https://terabox-dl.h-c.workers.dev/api/get-info?shorturl={surl}"
+                ]
+
+                for api_route in api_fallbacks:
+                    try:
+                        session = requests.Session(impersonate="chrome110")
+                        r = session.get(api_route, timeout=8)
+                        if r.status_code == 200:
+                            data = r.json()
+                            if "response" in data and len(data["response"]) > 0:
+                                resolutions = data["response"][0].get("resolutions", {})
+                                return resolutions.get("Fast Download") or resolutions.get("HD Video")
+                            elif "dlink" in data:
+                                return data["dlink"]
+                    except Exception:
+                        continue
 
                 return None
             except Exception:
