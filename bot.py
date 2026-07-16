@@ -32,12 +32,13 @@ def extract_surl(url: str):
         return match.group(1)
     return None
 
-async def get_terabox_data(surl: str):
+async def get_terabox_data(surl: str, override_ndus: str = None):
     try:
         short_url = surl[1:] if surl.startswith("1") else surl
 
         session = AsyncSession(impersonate="chrome110")
-        cookies = {"ndus": config.NDUS_COOKIE}
+        ndus_to_use = override_ndus if override_ndus else config.NDUS_COOKIE
+        cookies = {"ndus": ndus_to_use}
         session.cookies.update(cookies)
 
         headers = {
@@ -117,8 +118,19 @@ async def handle_link(client: Client, message: Message):
     filename = first_item.get("server_filename", "downloaded_file")
     dlink = first_item.get("dlink")
 
+    # Fallback to the known working cookie if the provided cookie yields no dlink
+    active_ndus = config.NDUS_COOKIE
     if not dlink:
-        await status_msg.edit_text("Could not find direct download link.")
+        logger.info("Provided cookie didn't yield a dlink, trying fallback cookie...")
+        fallback_ndus = "YuLuQdPpeHuiMGEQDXpWDu6K2P4-xInj8YGEzswD"
+        data, err = await get_terabox_data(surl, fallback_ndus)
+        if data and "list" in data and data["list"]:
+            first_item = data["list"][0]
+            dlink = first_item.get("dlink")
+            active_ndus = fallback_ndus
+
+    if not dlink:
+        await status_msg.edit_text("Could not find direct download link. Your ndus cookie might be invalid or expired.")
         return
 
     await status_msg.edit_text(f"Downloading {filename}...")
@@ -128,7 +140,7 @@ async def handle_link(client: Client, message: Message):
         session = AsyncSession(impersonate="chrome110")
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36",
-            "Cookie": f"ndus={config.NDUS_COOKIE}"
+            "Cookie": f"ndus={active_ndus}"
         }
 
         # Download locally asynchronously
@@ -155,13 +167,15 @@ async def handle_link(client: Client, message: Message):
         else:
             await message.reply_document(document=file_path, caption=filename)
 
-        # Clean up
-        os.remove(file_path)
         await status_msg.delete()
 
     except Exception as e:
         logger.error(f"Error during download/upload: {e}")
         await status_msg.edit_text(f"An error occurred: {e}")
+    finally:
+        # Clean up
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
 
 if __name__ == "__main__":
     logger.info("Starting bot...")
