@@ -135,6 +135,16 @@ async def handle_link(client: Client, message: Message):
 
     await status_msg.edit_text(f"Downloading {filename}...")
 
+    # Helper to create a progress bar
+    def make_progress_bar(current, total):
+        if total == 0:
+            return ""
+        percent = current / total
+        bar_len = 20
+        filled = int(bar_len * percent)
+        bar = "█" * filled + "░" * (bar_len - filled)
+        return f"\n[{bar}] {percent:.1%}"
+
     # Download the file
     try:
         session = AsyncSession(impersonate="chrome110")
@@ -149,23 +159,49 @@ async def handle_link(client: Client, message: Message):
             await status_msg.edit_text(f"Download failed with status code {response.status_code}")
             return
 
+        total_size = int(response.headers.get('content-length', 0))
+
         # Ensure unique file name to avoid collisions
-        unique_id = message.id
+        unique_id = f"{message.chat.id}_{message.id}"
         file_path = f"downloads/{unique_id}_{filename}"
         os.makedirs("downloads", exist_ok=True)
 
+        downloaded = 0
+        last_update = 0
         async with aiofiles.open(file_path, "wb") as f:
+            # We use smaller loop content iteration so curl_cffi doesn't get stuck with large files
             async for chunk in response.aiter_content():
                 if chunk:
                     await f.write(chunk)
+                    downloaded += len(chunk)
+                    # Update roughly every 5% or 5MB
+                    if (total_size > 0 and (downloaded - last_update) / total_size > 0.05) or (downloaded - last_update > 5 * 1024 * 1024):
+                        progress = make_progress_bar(downloaded, max(total_size, downloaded))
+                        try:
+                            await status_msg.edit_text(f"Downloading {filename}...{progress}")
+                            last_update = downloaded
+                        except Exception as e:
+                            pass # Ignore edit errors if they happen too frequently
 
         await status_msg.edit_text("Uploading to Telegram...")
 
+        async def upload_progress(current, total):
+            nonlocal last_update
+            if total > 0 and (current - last_update) / total > 0.05:
+                progress = make_progress_bar(current, total)
+                try:
+                    await status_msg.edit_text(f"Uploading {filename}...{progress}")
+                    last_update = current
+                except Exception as e:
+                    pass
+
+        last_update = 0
+
         # Upload to Telegram
         if filename.endswith((".mp4", ".mkv", ".webm")):
-            await message.reply_video(video=file_path, caption=filename)
+            await message.reply_video(video=file_path, caption=filename, progress=upload_progress)
         else:
-            await message.reply_document(document=file_path, caption=filename)
+            await message.reply_document(document=file_path, caption=filename, progress=upload_progress)
 
         await status_msg.delete()
 
