@@ -195,6 +195,8 @@ async def handle_link(client: Client, message: Message):
                 # If primary cookie fails, immediately try fallback
                 if not match:
                     fallback_cookie = "YuLuQdPpeHuiMGEQDXpWDu6K2P4-xInj8YGEzswD"
+                    # CRITICAL: Create a brand new session to clear any expired cookie state!
+                    session = requests.Session(impersonate="chrome110")
                     session.cookies.update({"ndus": fallback_cookie})
                     response = session.get(first_url, headers=headers)
                     match = re.search(r'fn%28%22(.*?)%22%29', response.text)
