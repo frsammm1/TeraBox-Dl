@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Initialize bot
 app = Client(
     "terabox_bot",
+    in_memory=True,
     api_id=config.API_ID,
     api_hash=config.API_HASH,
     bot_token=config.BOT_TOKEN
@@ -136,7 +137,9 @@ async def handle_link(client: Client, message: Message):
             await status_msg.edit_text(f"Download failed with status code {response.status_code}")
             return
 
-        file_path = f"downloads/{filename}"
+        # Ensure unique file name to avoid collisions
+        unique_id = message.id
+        file_path = f"downloads/{unique_id}_{filename}"
         os.makedirs("downloads", exist_ok=True)
 
         async with aiofiles.open(file_path, "wb") as f:
